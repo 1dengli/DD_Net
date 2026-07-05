@@ -403,11 +403,11 @@ def main():
 
         torch.cuda.empty_cache()
 
-        peak_memory = torch.cuda.max_memory_allocated() / 1024 ** 2
-        print("Peak GPU memory (MB):", peak_memory)
+    peak_memory = torch.cuda.max_memory_allocated() / 1024 ** 2
+    print("Peak GPU memory (MB):", peak_memory)
 
-        total_time = time.time() - start_time
-        print("Total training time (hours):", total_time / 3600)
+    total_time = time.time() - start_time
+    print("Total training time (hours):", total_time / 3600)
 
 if __name__ == '__main__':
     main()
