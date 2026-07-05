@@ -22,7 +22,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 #网络模型
-from unety import UNett_batcnnorm, UNett_batcnnorm2
+from unety import UNett_batcnnorm
 from unety.SAR_UNet import Se_PPP_ResUNet
 from Swin_Unet import vision_transformer
 from TransUNet.networks.vit_seg_modeling import VisionTransformer as ViT_seg
@@ -82,20 +82,18 @@ from m40 import m40
 from m43 import m43
 from m57 import m57
 from m37 import m37
-from m99 import m99
-from a98_2000 import a98_2000
-from FusionLungNet import FusionLungNet
-from DDNet import DD_Net
+from a98 import a98
+from a101010 import a101010
 from m000 import m000
 from DA_TransUnet_main.DA_TransUNet.Architecture import DATransUNet as DA_TransUNet
 from DA_TransUnet_main.DA_TransUNet.Architecture import DATransUNet
-from BRAU_Netplusplus_Pytorch_main.models import bra_unet, bra_unet2, bra_unet3, bra_unet4, bra_unet5
-
+from BRAU_Netplusplus_Pytorch_main.models import bra_unet
+import time
 
 def parse_args():
     parser = argparse.ArgumentParser()
     # model
-    parser.add_argument('--name', default="DDNet",
+    parser.add_argument('--name', default="DD_Net",
                         help='model name: UNET', choices=['UNET', 'SAR_UNet', 'UNet2P','UNet3P', 'swinunet', 'UCTransNet',"resunetpp"
                                                          'attention_unet', 'TransUNet',"DDANet","M2SNet","Res2Net_UNet","RESNet","ResNet_mynet_boundary",
                                                          "Res2Net_mynet_boundary","ResNet_mynet_boundary_TAFF","ResNet_mynet_boundary_TAFF_CDC",
@@ -230,7 +228,7 @@ def main():
         file_name= config['name'] + '_with_augmentation'
     else:
         file_name = config['name'] +'_base'
-    os.makedirs('xin_my_p3/fjj/{}'.format(file_name),exist_ok=True)
+    os.makedirs('p3/fjj/{}'.format(file_name),exist_ok=True)
     print("Creating directory called", file_name)
 
     print('-' * 20)
@@ -240,7 +238,7 @@ def main():
     print('-' * 20)
 
     #save configuration
-    with open('xin_my_p3/fjj/{}/config.yml'.format(file_name), 'w') as f:
+    with open('p3/fjj/{}/config.yml'.format(file_name), 'w') as f:
         yaml.dump(config, f)
 
     #criterion = nn.BCEWithLogitsLoss().cuda()
@@ -249,7 +247,7 @@ def main():
 
     # create model
     print("=> creating model")
-    if config['name'] == "UNET_2000":
+    if config['name'] == "UNET":
         model = UNett_batcnnorm.Unet(1, 1)
     elif config['name'] == "swinunet":
         model = vision_transformer.SwinUnet(img_size=128, num_classes=1)
@@ -276,22 +274,20 @@ def main():
         model = MSNet()
     elif config['name'] == "RESNet":
         model = RESNet(1)
-    elif config['name'] == "DDNet":
-        model = DD_Net(1)
+    elif config['name'] == "m40":
+        model = m40(1)
     elif config['name'] == "m37":
         model = m37(1)
     elif config['name'] == "m36":
         model = m36(1)
-    elif config['name'] == "m99":
-        model = m99(1)
+    elif config['name'] == "DD_Net":
+        model = DDNet(1)
     elif config['name'] == "m17":
         model = m17(1)
     elif config['name'] == "m43":
         model = m43(1)
-    elif config['name'] == "a98_2000":
-        model = a98_2000(1)
-    elif config['name'] == "FusionLungNet":
-        model = FusionLungNet(None)
+    elif config['name'] == "a101010":
+        model = a101010(1)
     # elif config['name'] == "ce2":
     #     model = ce2(1)
     # elif config['name'] == "ce3":
@@ -329,11 +325,11 @@ def main():
         model = DA_TransUNet.DA_Transformer(config_da, 128, 1)
     elif config['name'] == "BRAU_Net++":
         model = bra_unet.BRAUnet(img_size=128, in_chans=1, n_win=4)
-    elif config['name'] == "bra_unet2":
-        model = bra_unet2.BRAUnet(img_size=128, in_chans=1, n_win=4)
     else:
         raise ValueError("Wrong Parameters")
     model = model.cuda()
+
+    torch.cuda.reset_peak_memory_stats()
 
     if torch.cuda.device_count() > 1:
         print("Let's use", torch.cuda.device_count(), "GPUs!")
@@ -361,6 +357,7 @@ def main():
     best_dice = 0
     trigger = 0
     scheduler = CosineAnnealingLR(optimizer, T_max=100, eta_min=5e-6)
+    start_time = time.time()
 
     for epoch in range(config['epochs']):
         train_log = train(train_loader, model, criterion, optimizer)
@@ -389,12 +386,12 @@ def main():
 
         # 3) 再 concat，就能按行加了
         log = pd.concat([log, new_row], ignore_index=True)
-        log.to_csv('xin_my_p3/fjj/{}/log.csv'.format(file_name), index=False)
+        log.to_csv('p3/fjj/{}/log.csv'.format(file_name), index=False)
 
         trigger += 1
 
         if val_log['dice'] > best_dice:
-            torch.save(model.state_dict(), 'xin_my_p3/fjj/{}/bestmodel_{}_CosineAnnealingLR.pth'.format(file_name,config["lr"]))
+            torch.save(model.state_dict(), 'p3/fjj/{}/bestmodel_{}_CosineAnnealingLR.pth'.format(file_name,config["lr"]))
             best_dice = val_log['dice']
             print("=> saved best model as validation DICE is greater than previous best DICE")
             trigger = 0
@@ -405,6 +402,12 @@ def main():
             break
 
         torch.cuda.empty_cache()
+
+        peak_memory = torch.cuda.max_memory_allocated() / 1024 ** 2
+        print("Peak GPU memory (MB):", peak_memory)
+
+        total_time = time.time() - start_time
+        print("Total training time (hours):", total_time / 3600)
 
 if __name__ == '__main__':
     main()
